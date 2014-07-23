@@ -1,0 +1,8 @@
+#!/bin/bash
+pushd $(readlink -f $0)>/dev/null
+
+mkdir log
+rvm rvmrc load
+ruby probe.rb $hostname 54.77.80.109:80 > log/ping.log
+
+popd > /de/null
