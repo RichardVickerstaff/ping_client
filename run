@@ -5,6 +5,6 @@ source ~/.rvm/scripts/rvm
 rvm rvmrc trust
 rvm rvmrc load
 
-ruby probe.rb $hostname 54.77.80.109:80 > log/ping.log
+ruby probe.rb $(hostname) 54.77.80.109:80 > log/ping.log
 
 popd > /dev/null
