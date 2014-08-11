@@ -4,7 +4,8 @@ require 'rest_client'
 
 Site = Struct.new :url, :success, :response_ms do
   def to_json *_
-    JSON.generate to_h
+    initialised_values = to_h.reject{|_,v| v.nil?}
+    JSON.generate( initialised_values )
   end
 end
 
