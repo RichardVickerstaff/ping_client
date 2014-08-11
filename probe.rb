@@ -1,35 +1,51 @@
-require 'rest_client'
+require 'socket'
 require 'benchmark'
+require 'rest_client'
 
-def response_time site
-  begin
-    Benchmark.realtime{ RestClient.head site }
-  rescue => e
-    $stderr.puts "!! Polling #{site} failed with error #{e}"
-    -1
+Site = Struct.new :url, :success, :response_ms do
+  def to_json *_
+    JSON.generate to_h
   end
 end
 
-def get_sites_to_poll reporting_server
-  JSON.parse(RestClient.get reporting_server + '/sites')
+def log message=""
+  $stderr.puts message
+end
+
+def get_sites_to_poll server
+  site_source = server + '/sites/sample'
+  log "Acquiring sites to poll from #{site_source}"
+  response = JSON.parse(RestClient.get site_source)
+  log "  <- #{response}"
+  response['sites'].map{|url| Site.new(url)}
 end
 
 def poll site
-  $stderr.puts "  -> #{site}"
-  response_time site
+  log "  -> #{site.url}"
+  begin
+    response_seconds = Benchmark.realtime{ RestClient.head site.url }
+    site.response_ms = (response_seconds * 1000).round
+    site.success = true
+    log "  <- response: #{site.response_ms} ms"
+  rescue => e
+    site.success = false
+    log "  !! Failed: #{e}"
+  end
+  site
 end
 
-name = ARGV[0]
-reporting_server = ARGV[1] || 'localhost:4567'
-$stderr.puts "Probe time!"
+server = ARGV[0] || 'localhost:3000'
 
-sample_sites = get_sites_to_poll(reporting_server)
+log "Probe activated"
+sample_sites = get_sites_to_poll(server)
 
-times = sample_sites.each_with_object({}) do |(group, sites), result|
-  next if sites.empty?
-  $stderr.puts "  #{group.capitalize}"
-  result[group] = sites.map{|site| poll site}
-end
+log "Probing sites"
+pings = sample_sites.map { |site| poll site }
 
-puts JSON.pretty_generate times
-RestClient.post(reporting_server + '/pings', {  name: name, pings: JSON.generate(times) })
+log "Notifying server"
+probe_response = JSON.pretty_generate({pings: pings})
+log "  -> #{probe_response}"
+
+RestClient.post(server + '/pings', probe_response )
+
+log "All done!"
