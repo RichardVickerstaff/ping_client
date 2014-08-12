@@ -1,6 +1,7 @@
 require 'socket'
 require 'benchmark'
 require 'rest_client'
+require 'macaddr'
 
 Site = Struct.new :url, :success, :response_ms do
   def to_json *_
@@ -9,14 +10,25 @@ Site = Struct.new :url, :success, :response_ms do
   end
 end
 
+def server_site_list_url
+  $server + "/sites/sample"
+end
+
+def server_report_url
+  $server + "/pings/#{probe_uid}/runs"
+end
+
+def probe_uid
+  Mac.addr.gsub(/:/, '')
+end
+
 def log message=""
   $stderr.puts message
 end
 
-def get_sites_to_poll server
-  site_source = server + '/sites/sample'
-  log "Acquiring sites to poll from #{site_source}"
-  response = JSON.parse(RestClient.get site_source)
+def sites_to_poll
+  log "Acquiring sites to poll from #{server_site_list_url}"
+  response = JSON.parse(RestClient.get server_site_list_url)
   log "  <- #{response}"
   response['sites'].map{|url| Site.new(url)}
 end
@@ -35,18 +47,26 @@ def poll site
   site
 end
 
-server = ARGV[0] || 'localhost:3000'
+def upload_results(pings)
+  log "Posting results to #{server_report_url}"
+  probe_response = JSON.pretty_generate({pings: pings})
+  log "  -> #{probe_response}"
+  RestClient.post(server_report_url, probe_response)
+end
+
+#####################################################
+################ BEGIN MAIN SCRIPT ##################
+#####################################################
+
+$server = ARGV[0] || 'localhost:3000'
 
 log "Probe activated"
-sample_sites = get_sites_to_poll(server)
+sample_sites = sites_to_poll
 
 log "Probing sites"
 pings = sample_sites.map { |site| poll site }
 
-log "Notifying server"
-probe_response = JSON.pretty_generate({pings: pings})
-log "  -> #{probe_response}"
-
-RestClient.post(server + '/pings', probe_response )
+log "Probing complete, reporting to server"
+upload_results(pings)
 
 log "All done!"
