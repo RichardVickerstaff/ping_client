@@ -1,9 +1,8 @@
 #!/usr/bin/env ruby
 
-require 'socket'
 require 'benchmark'
-require 'rest_client'
-require 'macaddr'
+require_relative 'common'
+include ProbeCommon
 
 Site = Struct.new :url, :success, :response_ms do
   def to_json *_
@@ -17,15 +16,7 @@ def server_site_list_url
 end
 
 def server_report_url
-  $server + "/pings/#{probe_uid}/runs"
-end
-
-def probe_uid
-  Mac.addr.gsub(/:/, '')
-end
-
-def log message=""
-  $stderr.puts message
+  $server + "/probes/#{probe_uid}/runs"
 end
 
 def sites_to_poll
@@ -60,7 +51,7 @@ end
 ################ BEGIN MAIN SCRIPT ##################
 #####################################################
 
-$server = ARGV[0] || 'localhost:3000'
+$server = ARGV[0] || default_server
 
 log "Probe activated"
 sample_sites = sites_to_poll
